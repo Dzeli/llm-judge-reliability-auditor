@@ -1,0 +1,9 @@
+google-adk>=1.0.0
+gradio>=4.44.0
+openai>=1.55.0
+python-dotenv>=1.0.1
+pydantic>=2.7.0
+fastmcp>=2.0.0
+matplotlib>=3.8.0
+numpy>=1.26.0
+pytest>=8.0.0
