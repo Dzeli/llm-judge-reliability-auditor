@@ -1,3 +1,17 @@
+---
+title: Llm Judge Reliability Auditor
+emoji: 📈
+colorFrom: pink
+colorTo: green
+sdk: gradio
+sdk_version: 6.19.0
+python_version: '3.13'
+app_file: app.py
+pinned: false
+license: mit
+short_description: A multi-agent diagnostic toolkit for auditing LLM-as-judge
+---
+
 # LLM Judge Reliability Auditor v3.1
 
 A diagnostic evaluation toolkit for testing whether an **LLM-as-a-judge** is accurate, stable, and robust before using it in an evaluation pipeline.
@@ -388,18 +402,3 @@ Reliability = correctness + robustness + stability.
 ```
 
 A good judge should not only give the same answer repeatedly. It should give the right answer, remain stable under irrelevant transformations, and avoid being tipped by superficial presentation features.
----
-title: Llm Judge Reliability Auditor
-emoji: 📈
-colorFrom: pink
-colorTo: green
-sdk: gradio
-sdk_version: 6.19.0
-python_version: '3.13'
-app_file: app.py
-pinned: false
-license: mit
-short_description: A multi-agent diagnostic toolkit for auditing LLM-as-judge
----
-
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
