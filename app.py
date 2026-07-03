@@ -207,7 +207,7 @@ def _result_metric_line(result):
     return "_" + "; ".join(parts) + "_" if parts else ""
 
 
-with gr.Blocks(title="LLM Judge Reliability Auditor v3", css=CSS, theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
     gr.HTML("""
     <div class='hero'>
       <h1>🔬 LLM Judge Reliability Auditor v3</h1>
@@ -253,4 +253,4 @@ with gr.Blocks(title="LLM Judge Reliability Auditor v3", css=CSS, theme=gr.theme
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(css=CSS, theme=gr.themes.Soft())
