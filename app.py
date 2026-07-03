@@ -55,20 +55,19 @@ CSS = """
 .hero {background: linear-gradient(135deg,#111827,#1d4ed8); color:white; padding:24px 28px; border-radius:14px; margin-bottom:14px;}
 .hero h1 {margin:0; font-size:28px;} .hero p {opacity:.85; margin:6px 0 0 0;}
 .small-note {font-size: 12px; color:#666;}
-.mode-info {background:#f0f4ff; border-left:4px solid #1d4ed8; padding:10px 14px; border-radius:6px; margin-bottom:4px;}
 """
 
 SINGLE_PAIR_INFO = (
-    "<div class='mode-info'>📌 <b>Single-pair probe</b> — You supply a question and two answers. "
+    "> 📌 **Single-pair probe** — You supply a question and two answers. "
     "The auditor mutates your pair (swaps positions, rewrites style, etc.) and checks whether the judge changes its verdict. "
-    "Good for spot-checking a specific case. Confidence is always <b>low</b> — one pair is one data point.</div>"
+    "Good for spot-checking a specific case. Confidence is always **low** — one pair is one data point."
 )
 
 DIAGNOSTIC_INFO = (
-    "<div class='mode-info'>🔬 <b>Diagnostic suite</b> — No custom input needed. "
+    "> 🔬 **Diagnostic suite** — No custom input needed. "
     "The auditor runs its built-in library of close-call cases designed to expose bias across all 6 test types. "
-    "Gives a generalizable bias profile with <b>medium</b> or <b>high</b> confidence. "
-    "The question/answer fields below are ignored.</div>"
+    "Gives a generalizable bias profile with **medium** or **high** confidence. "
+    "The question/answer fields below are ignored."
 )
 
 
@@ -246,7 +245,7 @@ with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
             label="Audit mode",
         )
 
-    mode_info = gr.HTML(value=SINGLE_PAIR_INFO)
+    mode_info = gr.Markdown(value=SINGLE_PAIR_INFO)
     preset = gr.Dropdown(list(PRESETS.keys()), label="Preset (single-pair only)", value=None, visible=True)
 
     with gr.Row():
