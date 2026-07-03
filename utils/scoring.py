@@ -69,8 +69,6 @@ def compute_metric_summary(results: dict[TestType, TestResult]) -> MetricSummary
     # Bias susceptibility is deliberately about non-invariance only.
     non_invariance = [1 - inv for inv in invariances]
 
-    accuracy_values = robust_accs + consistency_accs + ([ref_with] if ref_with is not None else [])
-
     return MetricSummary(
         baseline_accuracy=_mean(baseline_accs),
         robust_accuracy=_mean(robust_accs),
@@ -83,7 +81,6 @@ def compute_metric_summary(results: dict[TestType, TestResult]) -> MetricSummary
         reference_accuracy_without=ref_without,
         reference_helpfulness=ref_delta,
         bias_susceptibility=_mean(non_invariance),
-        accuracy=_mean(accuracy_values),
         reference_helpfulness_label=_reference_label(ref_delta),
     )
 
@@ -102,10 +99,10 @@ def score_interpretation(audit_mode: AuditMode, n_cases: int, confidence: str) -
     if audit_mode == AuditMode.SINGLE_PAIR:
         return (
             "Single-pair probe: the score describes fragility on the supplied example only. "
-            "V3 separates baseline accuracy, robust accuracy, and invariance when a gold winner is provided."
+            "V4 separates baseline accuracy, robust accuracy, and invariance when a gold winner is provided."
         )
     return (
-        f"Diagnostic-suite estimate based on {n_cases} controlled cases. V3.1 separates accuracy from invariance; "
+        f"Diagnostic-suite estimate based on {n_cases} controlled cases. V4 separates accuracy from invariance; "
         f"perturbation quality is 0.6 × robust_accuracy + 0.4 × invariance, and "
         f"consistency quality is stability × accuracy. Confidence is {confidence}."
     )

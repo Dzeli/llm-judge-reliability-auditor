@@ -1,4 +1,4 @@
-"""Gradio UI for LLM Judge Reliability Auditor v3.
+"""Gradio UI for LLM Judge Reliability Auditor v4.
 Run: python app.py
 """
 from __future__ import annotations
@@ -230,10 +230,10 @@ def _result_metric_line(result):
     return "_" + "; ".join(parts) + "_" if parts else ""
 
 
-with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
+with gr.Blocks(title="LLM Judge Reliability Auditor v4") as demo:
     gr.HTML("""
     <div class='hero'>
-      <h1>🔬 LLM Judge Reliability Auditor v3</h1>
+      <h1>🔬 LLM Judge Reliability Auditor v4</h1>
       <p>Accuracy-aware perturbation probes + controlled diagnostic-suite audits for LLM-as-judge systems.</p>
     </div>
     """)
@@ -263,7 +263,7 @@ with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
             tests = gr.CheckboxGroup([t.value for t in TestType], value=[t.value for t in TestType], label="Tests")
             consistency_runs = gr.Slider(2, 10, value=5, step=1, label="Consistency runs")
             with gr.Group(visible=False) as diagnostic_controls:
-                diagnostic_limit = gr.Slider(1, 30, value=24, step=1, label="Diagnostic case limit")
+                diagnostic_limit = gr.Slider(1, 30, value=18, step=1, label="Diagnostic case limit")
                 diagnostic_difficulty = gr.Dropdown(["all", "easy", "medium", "hard"], value="all", label="Diagnostic difficulty")
             run_btn = gr.Button("Run audit", variant="primary")
 

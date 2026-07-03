@@ -36,3 +36,7 @@ class JudgeDecision(BaseModel):
     latency_ms: float
     tokens_used: Optional[int] = None
     case_id: str = "user_case"
+    parse_failed: bool = Field(
+        default=False,
+        description="True when the WINNER: A/B/TIE pattern was not found in the response; verdict defaulted to 'tie'.",
+    )

@@ -14,6 +14,7 @@ from agents.diagnostic_suite import load_builtin_cases
 from agents.perturbation_validator import (
     not_applicable,
     validate_rubric_paraphrase,
+    validate_rubric_priority_shift,
     validate_style,
     validate_verbosity,
 )
@@ -23,6 +24,7 @@ from models.input import AuditInput, AuditMode, TestType
 from models.test_case import TestCase
 from utils.prompts import (
     RUBRIC_PARAPHRASE_PROMPT,
+    RUBRIC_PRIORITY_SHIFT_PROMPT,
     STYLE_REWRITE_PROMPT,
     VERBOSITY_PADDING_PROMPT,
     build_judge_prompt,
@@ -279,11 +281,21 @@ def _validate_style_pair(
 
 
 def _rubric_cases(case: DiagnosticCase, expected: str | None) -> list[TestCase]:
-    raw = _llm(
+    # Paraphrase variants: same priorities, different wording — winner should be unchanged.
+    raw_paraphrase = _llm(
         RUBRIC_PARAPHRASE_PROMPT.format(rubric=case.rubric, n=3),
         fallback="\n".join([f"{i}. {case.rubric}" for i in range(1, 4)]),
     )
-    paraphrases = _extract_numbered_lines(raw, 3)
+    paraphrases = _extract_numbered_lines(raw_paraphrase, 3)
+
+    # Priority-shift variants: same criteria, deliberately reordered importance.
+    # should_preserve_winner=False because the correct winner may legitimately change.
+    raw_shift = _llm(
+        RUBRIC_PRIORITY_SHIFT_PROMPT.format(rubric=case.rubric, n=3),
+        fallback="\n".join([f"{i}. {case.rubric}" for i in range(1, 4)]),
+    )
+    shifts = _extract_numbered_lines(raw_shift, 3)
+
     out: list[TestCase] = []
     for i, paraphrase in enumerate(paraphrases, start=1):
         vid = f"{case.id}::rubric_paraphrase_{i}"
@@ -299,7 +311,25 @@ def _rubric_cases(case: DiagnosticCase, expected: str | None) -> list[TestCase]:
                 expected_winner=expected,  # type: ignore[arg-type]
                 metric_family="invariance",
                 validation=validation,
-                metadata={"rubric_paraphrase": paraphrase},
+                metadata={"rubric_paraphrase": paraphrase, "rubric_variant_type": "paraphrase"},
+            )
+        )
+    for i, shifted in enumerate(shifts, start=1):
+        vid = f"{case.id}::rubric_priority_shift_{i}"
+        validation = validate_rubric_priority_shift(case.rubric, shifted, vid)
+        out.append(
+            TestCase(
+                test_type=TestType.RUBRIC,
+                variant_id=vid,
+                case_id=case.id,
+                prompt=build_judge_prompt(case.question, case.answer_a, case.answer_b, shifted, case.reference_answer),
+                answer_order=("A", "B"),
+                mutation_description=f"Rubric priority shift {i}: {shifted}",
+                expected_winner=expected,  # type: ignore[arg-type]
+                should_preserve_winner=False,
+                metric_family="invariance",
+                validation=validation,
+                metadata={"rubric_priority_shift": shifted, "rubric_variant_type": "priority_shift"},
             )
         )
     return out
@@ -330,11 +360,7 @@ def _reference_cases(case: DiagnosticCase, expected: str | None) -> list[TestCas
 def _pad(answer: str) -> str:
     words = answer.split()
     target_words = max(70, len(words) * 2)
-    fallback = (
-        "Regarding the question, the answer is as follows. "
-        + answer.strip()
-        + " This keeps the same substantive point while presenting it in a slightly more expanded format."
-    )
+    fallback = _pad_fallback(answer)
     return _llm(VERBOSITY_PADDING_PROMPT.format(answer=answer, target_words=target_words), fallback=fallback)
 
 
@@ -342,8 +368,49 @@ def _rewrite(answer: str, style: str) -> str:
     if style == "plain":
         fallback = re.sub(r"\s+", " ", answer).strip()
     else:
-        fallback = f"{answer.strip()}"  # length-controlled fallback; generator adds polish when API is available
+        fallback = _polished_fallback(answer)
     return _llm(STYLE_REWRITE_PROMPT.format(answer=answer, style=style), fallback=fallback)
+
+
+def _pad_fallback(answer: str) -> str:
+    """Produce a longer version of the answer using neutral scaffolding only.
+
+    Strategy: break the original into sentences, then re-state each as a
+    full-sentence paragraph with a topic opener. No new facts are added.
+    This avoids the old fallback's meta-commentary about the mutation itself.
+    """
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", answer.strip()) if s.strip()]
+    if not sentences:
+        return answer
+    parts = []
+    openers = [
+        "To begin with, ", "In addition, ", "Furthermore, ",
+        "It is also worth noting that ", "As a further point, ",
+        "To summarize this aspect, ",
+    ]
+    for i, sent in enumerate(sentences):
+        opener = openers[i % len(openers)]
+        # Lowercase the first char of the sentence when prepending an opener.
+        body = sent[0].lower() + sent[1:] if sent else sent
+        parts.append(f"{opener}{body}")
+    return " ".join(parts)
+
+
+def _polished_fallback(answer: str) -> str:
+    """Produce a formally-styled rewrite of the answer without an LLM.
+
+    Strategy: prepend a formal framing sentence and close with a summary
+    clause. Word count stays close to the original (within ~20%). No facts
+    are added or removed.
+    """
+    stripped = answer.strip()
+    # Ensure the answer ends with punctuation before appending the closer.
+    if stripped and stripped[-1] not in ".\'!?":
+        stripped += "."
+    framing = "Upon careful consideration of the question at hand, it is evident that "
+    # Lowercase first char of original to flow after the framing clause.
+    body = stripped[0].lower() + stripped[1:] if stripped else stripped
+    return f"{framing}{body}"
 
 
 def _extract_numbered_lines(text: str, n: int) -> list[str]:

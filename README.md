@@ -143,7 +143,7 @@ The auditor aggregates results across cases to produce a bias profile with `medi
 | **Verbosity** | Does answer length affect verdicts? | Expand one answer with neutral filler content |
 | **Style** | Does presentation style affect verdicts? | Rewrite one answer in a different register (plain↔polished) |
 | **Consistency** | Does the judge repeat its verdict? | Ask the same question N times and measure agreement |
-| **Rubric** | Does rubric wording affect verdicts? | Paraphrase the rubric without changing its meaning |
+| **Rubric** | Does rubric wording or criterion priority affect verdicts? | Paraphrase the rubric (same priorities, different wording) and generate priority-shifted variants (same criteria, reordered importance) |
 | **Reference** | Does a reference answer help or hurt? | Compare accuracy with vs. without a reference |
 
 ---
@@ -213,7 +213,7 @@ from models.input import AuditInput, AuditMode
 report = run_audit_pipeline(AuditInput(
     audit_mode=AuditMode.DIAGNOSTIC_SUITE,
     judge_model="google/gemini-2.5-flash",
-    diagnostic_case_limit=24,
+    diagnostic_case_limit=18,
     diagnostic_difficulty="all",
 ))
 

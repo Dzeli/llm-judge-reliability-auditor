@@ -20,7 +20,7 @@ class TestType(str, Enum):
 class AuditInput(BaseModel):
     """User-facing configuration for an audit run.
 
-    V2 supports two modes:
+    V4 supports two modes:
     - single_pair: perturb one user-provided A/B example. This is a local probe, not a global certificate.
     - diagnostic_suite: run controlled built-in cases with expected winners for a stronger bias profile.
     """

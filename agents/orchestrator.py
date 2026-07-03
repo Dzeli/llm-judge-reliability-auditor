@@ -1,4 +1,4 @@
-"""V3 orchestrator.
+"""V4 orchestrator.
 
 The direct Python pipeline is the primary UI path. ADK tools expose the same stages for the
 capstone requirement and for interactive agent debugging.
@@ -62,11 +62,11 @@ def tool_build_report(audit_input_json: str, test_results_json: str, test_cases_
 
 if Agent is not None:
     root_agent = Agent(
-        name="llm_judge_auditor_v3",
+        name="llm_judge_auditor_v4",
         model="gemini-2.5-flash",
         description="Audits LLM-as-judge reliability using single-pair probes and controlled diagnostic cases.",
         instruction="""
-You are the LLM Judge Reliability Auditor v3 orchestrator.
+You are the LLM Judge Reliability Auditor v4 orchestrator.
 Follow the pipeline: generate perturbations, run judge, analyze bias, build report.
 Explain that single-pair mode is a local probe and diagnostic-suite mode gives stronger but still empirical estimates.
 """,

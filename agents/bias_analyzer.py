@@ -9,14 +9,13 @@ from utils.scoring import bias_score_to_verdict
 
 
 def analyze(decisions: list[JudgeDecision], test_cases: list[TestCase]) -> dict[TestType, TestResult]:
-    """Analyze judge decisions using V3's separated metric families.
+    """Analyze judge decisions using separated accuracy and invariance metric families.
 
-    V2 compared most perturbation decisions directly against the expected winner.
-    That mixed two different properties:
+    Earlier approaches conflated two different properties:
       1. accuracy: did the judge pick the gold winner?
       2. invariance: did the judge's verdict stay stable under an irrelevant mutation?
 
-    V3 computes both. A judge can therefore be:
+    This auditor computes both. A judge can therefore be:
       - correct and invariant,
       - correct but perturbation-sensitive,
       - consistently wrong,
@@ -57,8 +56,8 @@ def _perturbation_invariance(
     decisions: list[JudgeDecision],
     case_by_variant: dict[str, TestCase],
 ) -> TestResult:
-    baseline_decisions = [d for d in decisions if d.variant_id.endswith("::baseline")]
-    variant_decisions = [d for d in decisions if not d.variant_id.endswith("::baseline")]
+    baseline_decisions = [d for d in decisions if _is_baseline(d, case_by_variant)]
+    variant_decisions = [d for d in decisions if not _is_baseline(d, case_by_variant)]
     eval_variants = variant_decisions or []
 
     baseline_by_case = {d.case_id: d for d in baseline_decisions}
@@ -156,7 +155,6 @@ def _perturbation_invariance(
         baseline_accuracy=baseline_accuracy,
         robust_accuracy=robust_accuracy,
         invariance=invariance,
-        accuracy=robust_accuracy,
         quality_score=quality_score,
         metric_family="invariance",
     )
@@ -238,7 +236,6 @@ def _consistency(decisions: list[JudgeDecision], case_by_variant: dict[str, Test
         consistency_accuracy=consistency_accuracy,
         consistency_quality=consistency_quality,
         consistency_profile=consistency_profile,
-        accuracy=consistency_accuracy,
         quality_score=consistency_quality,
         metric_family="stability",
     )
@@ -316,7 +313,6 @@ def _reference(decisions: list[JudgeDecision], case_by_variant: dict[str, TestCa
         reference_accuracy_with=with_acc,
         reference_accuracy_without=without_acc,
         reference_delta=delta,
-        accuracy=with_acc,
         quality_score=quality_score,
         metric_family="accuracy",
     )
@@ -366,6 +362,13 @@ def _consistency_profile(stability: float | None, accuracy: float | None) -> str
     if accurate and not stable:
         return "accurate_but_unstable"
     return "unstable_and_inaccurate"
+
+
+def _is_baseline(decision: JudgeDecision, case_by_variant: dict[str, TestCase]) -> bool:
+    if decision.variant_id.endswith("::baseline"):
+        return True
+    case = case_by_variant.get(decision.variant_id)
+    return case is not None and case.role == "baseline"
 
 
 def _safe_mean_bool(values: list[bool]) -> float | None:

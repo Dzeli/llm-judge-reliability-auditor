@@ -12,7 +12,7 @@ from fastmcp import FastMCP
 from agents.orchestrator import run_audit_pipeline
 from models.input import AuditInput, AuditMode, TestType
 
-mcp = FastMCP("LLM Judge Reliability Auditor v3")
+mcp = FastMCP("LLM Judge Reliability Auditor v4")
 
 
 @mcp.tool()
@@ -59,7 +59,7 @@ def audit_judge_single_pair(
 def audit_judge_diagnostic_suite(
     judge_model: str,
     tests: str = "all",
-    case_limit: int = 24,
+    case_limit: int = 18,
     difficulty: str = "all",
     consistency_runs: int = 5,
 ) -> str:
@@ -71,7 +71,7 @@ def audit_judge_diagnostic_suite(
 
     judge_model: OpenRouter model ID, e.g. 'google/gemini-2.5-flash'
     tests: comma-separated list of test types, or 'all'. Options: position, verbosity, style, consistency, rubric, reference
-    case_limit: maximum number of diagnostic cases to run (max 24)
+    case_limit: maximum number of diagnostic cases to run (18 = all built-in cases)
     difficulty: filter cases by difficulty — 'all', 'easy', 'medium', or 'hard'
     consistency_runs: how many times to repeat the same judgment for consistency testing
     Returns: full AuditReport as JSON including reliability score, grade, and per-test breakdowns

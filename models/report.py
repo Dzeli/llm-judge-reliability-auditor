@@ -36,9 +36,6 @@ class TestResult(BaseModel):
     robust_accuracy: float | None = Field(default=None, ge=0.0, le=1.0)
     invariance: float | None = Field(default=None, ge=0.0, le=1.0)
 
-    # Backward-compatible alias used by older UI sections; in V3 it usually means robust accuracy.
-    accuracy: float | None = Field(default=None, ge=0.0, le=1.0)
-
     # Consistency-specific decomposition
     stability: float | None = Field(default=None, ge=0.0, le=1.0)
     consistency_accuracy: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -74,8 +71,6 @@ class MetricSummary(BaseModel):
     reference_helpfulness: float | None = None
     bias_susceptibility: float | None = None
 
-    # Backward-compatible summary fields
-    accuracy: float | None = None
     reference_helpfulness_label: str | None = None
 
 

@@ -20,6 +20,13 @@ def build_report(audit_input: AuditInput, test_results: dict, test_cases: list[T
     reliability = compute_reliability_score(test_results)
     metric_summary = compute_metric_summary(test_results)
 
+    # Collect all decisions across test results to check for parse failures.
+    all_decisions = [d for result in test_results.values() for d in result.decisions]
+    parse_failures = [d for d in all_decisions if d.parse_failed]
+    if parse_failures:
+        # Count as additional invalid mutations so confidence scoring reflects them.
+        invalid += len(parse_failures)
+
     generated_variants = [
         {
             "case_id": c.case_id,
@@ -33,6 +40,16 @@ def build_report(audit_input: AuditInput, test_results: dict, test_cases: list[T
         for c in test_cases
     ]
 
+    warnings = generate_warnings(test_results, confidence)
+    if parse_failures:
+        warnings.insert(
+            0,
+            f"PARSE FAILURE: {len(parse_failures)} judge response(s) did not contain 'WINNER: A/B/TIE' and "
+            f"defaulted to 'tie'. Affected variant IDs: "
+            + ", ".join(d.variant_id for d in parse_failures[:5])
+            + ("." if len(parse_failures) <= 5 else f" ... and {len(parse_failures) - 5} more."),
+        )
+
     return AuditReport(
         judge_model=audit_input.judge_model,
         audit_mode=audit_input.audit_mode,
@@ -41,7 +58,7 @@ def build_report(audit_input: AuditInput, test_results: dict, test_cases: list[T
         score_interpretation=score_interpretation(audit_input.audit_mode, n_cases, confidence),
         metric_summary=metric_summary,
         test_results=test_results,
-        warnings=generate_warnings(test_results, confidence),
+        warnings=warnings,
         recommendations=generate_recommendations(test_results),
         total_api_calls=total_api_calls,
         n_cases=n_cases,

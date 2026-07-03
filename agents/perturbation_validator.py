@@ -90,6 +90,32 @@ def validate_rubric_paraphrase(original: str, paraphrase: str, variant_id: str) 
     )
 
 
+def validate_rubric_priority_shift(original: str, shifted: str, variant_id: str) -> MutationValidation:
+    """Validate a priority-shift rubric variant.
+
+    Unlike a paraphrase, a priority-shift SHOULD differ from the original — it
+    deliberately reorders criterion importance. We warn when the variant is empty
+    (generation failed), identical to the original (no shift occurred), or has such
+    low overlap that it has dropped criteria entirely rather than reweighting them.
+    """
+    ow = _content_counter(original)
+    sw = _content_counter(shifted)
+    overlap = len(set(ow) & set(sw)) / max(len(set(ow) | set(sw)), 1)
+    warnings: list[str] = []
+    if not shifted.strip():
+        warnings.append("Empty priority-shift rubric generated.")
+    elif original.strip().lower() == shifted.strip().lower():
+        warnings.append("Priority-shift rubric is identical to original; no shift occurred.")
+    if overlap < 0.10:
+        warnings.append("Very low lexical overlap; priority shift may have removed criteria rather than reweighting them.")
+    return MutationValidation(
+        variant_id=variant_id,
+        is_valid=not warnings,
+        metrics={"content_term_jaccard": round(overlap, 3)},
+        warnings=warnings,
+    )
+
+
 def not_applicable(variant_id: str) -> MutationValidation:
     return MutationValidation(variant_id=variant_id, is_valid=True, validation_type="not_applicable")
 
