@@ -1,204 +1,156 @@
 ---
-title: Llm Judge Reliability Auditor
-emoji: 📈
-colorFrom: pink
-colorTo: green
+title: LLM Judge Reliability Auditor
+emoji: 🔬
+colorFrom: indigo
+colorTo: blue
 sdk: gradio
 sdk_version: 6.19.0
 python_version: '3.13'
 app_file: app.py
 pinned: false
 license: mit
-short_description: A multi-agent diagnostic toolkit for auditing LLM-as-judge
+short_description: A multi-agent diagnostic toolkit for auditing LLM-as-judge reliability
 ---
 
-# LLM Judge Reliability Auditor v3.1
+# 🔬 LLM Judge Reliability Auditor
 
-A diagnostic evaluation toolkit for testing whether an **LLM-as-a-judge** is accurate, stable, and robust before using it in an evaluation pipeline.
+A multi-agent diagnostic toolkit that tests whether an **LLM-as-a-judge is trustworthy** — before you use it in an evaluation pipeline.
 
-The project started as a single-pair perturbation probe and evolved into a more methodologically careful auditor. V3/V3.1 separates **accuracy** from **invariance** and treats consistency as useful only when it is both stable and correct.
-
-Built for the Kaggle AI Agents Intensive Capstone using **Google ADK**, **Gradio**, **OpenRouter**, **Pydantic**, and **FastMCP**.
-
----
-
-## Why this exists
-
-LLM-as-a-judge is now common in RAG evaluation, leaderboard construction, preference modeling, automated review, and product analytics. But a judge model can be biased or fragile in ways that are hard to notice:
-
-- It may prefer the first answer because of answer order.
-- It may reward longer answers even when they add no useful content.
-- It may overvalue polished, confident writing.
-- It may change decisions when the rubric is paraphrased.
-- It may be stable but consistently wrong.
-- It may improve or degrade when given a reference answer.
-
-This tool audits those risks empirically.
+Built for the [Kaggle AI Agents Intensive Capstone](https://www.kaggle.com/competitions/google-ai-intensive-capstone) using **Google ADK**, **Gradio**, **OpenRouter**, **Pydantic v2**, and **FastMCP**.
 
 ---
 
-## What V3/V3.1 improves methodologically
+## The problem this solves
 
-Earlier versions treated many perturbation failures as generic “bias.” V3 is more careful.
+LLM-as-judge has become a standard technique in RAG evaluation, leaderboard construction, preference modeling, and automated review. The idea: instead of human annotators, use a capable LLM to compare two answers and pick the better one.
 
-For position, verbosity, style, and rubric tests, V3 reports three separate quantities:
+But judge models can fail in subtle ways that are hard to notice from outputs alone:
 
-| Metric | Meaning |
+| Failure mode | Example |
 |---|---|
-| `baseline_accuracy` | Did the judge pick the expected winner before perturbation? |
-| `robust_accuracy` | Did the judge pick the expected winner after perturbation? |
-| `invariance` | Did the judge keep the same verdict under a change that should not affect the winner? |
+| **Position bias** | Always favors whichever answer appears first |
+| **Verbosity bias** | Rewards longer answers even when length adds nothing |
+| **Style bias** | Prefers polished, confident writing over accurate but plain writing |
+| **Consistency failure** | Changes its verdict when asked the same question twice |
+| **Rubric sensitivity** | Flips verdict when the rubric is paraphrased without changing meaning |
+| **Reference distortion** | Performs worse — not better — when a reference answer is provided |
 
-For the overall reliability index, V3.1 uses a deliberately simple perturbation-quality composite:
+Any of these can quietly corrupt an evaluation pipeline. This tool makes them measurable.
 
-```text
-perturbation_quality = 0.60 × robust_accuracy + 0.40 × invariance
-```
+---
 
-`baseline_accuracy` is still reported, but it is not included in this inner composite because `robust_accuracy` is the direct measure of correctness under the perturbation being audited. The 60/40 split makes correctness under perturbation slightly more important than pure verdict stability, while still penalizing non-invariance.
+## How it works
 
-This prevents a key mistake: a judge can be **consistently wrong** without being position-biased or style-biased.
+The auditor runs a **controlled perturbation experiment**:
 
-For consistency, V3 reports:
+1. Take a question + two candidate answers with a known correct winner
+2. Generate a mutated variant of the pair that should *not* change the correct winner
+3. Show both the original and the variant to the judge
+4. Measure whether the judge's verdict changes
 
-| Metric | Meaning |
+If a judge flips its verdict under a transformation that should be irrelevant (e.g. swapping answer positions), it has demonstrated that bias.
+
+### The key methodological insight
+
+Early approaches conflated *accuracy* and *stability*. This auditor keeps them separate:
+
+- A judge that **always picks the wrong answer** is stable (invariant) but not reliable
+- A judge that **sometimes picks the right answer** but flips under perturbation has a different problem
+- A judge that **consistently picks the right answer** and stays stable under perturbation is trustworthy
+
+This distinction drives all metric design in this tool.
+
+---
+
+## Metrics explained
+
+### For perturbation tests (position, verbosity, style, rubric)
+
+| Metric | What it measures |
 |---|---|
-| `stability` | How often repeated calls agree with one another |
-| `consistency_accuracy` | How often repeated calls match the expected winner |
+| `baseline_accuracy` | Did the judge pick the correct winner **before** any perturbation? |
+| `robust_accuracy` | Did the judge pick the correct winner **after** the perturbation? |
+| `invariance` | Did the judge keep the **same verdict** regardless of which direction was correct? |
+| `bias_score` | Rate of verdict flips due to this perturbation (pure instability signal) |
+| `quality_score` | `0.60 × robust_accuracy + 0.40 × invariance` |
+
+The quality formula weights correctness under perturbation more heavily than pure stability, because a stable but consistently wrong judge should not score well.
+
+### For consistency tests
+
+| Metric | What it measures |
+|---|---|
+| `stability` | How often repeated calls agree with each other |
+| `consistency_accuracy` | How often repeated calls match the correct winner |
 | `consistency_quality` | `stability × consistency_accuracy` |
+| `consistency_profile` | One of: `stable_and_correct`, `stable_but_inaccurate`, `accurate_but_unstable`, `unstable_and_inaccurate` |
 
-The report still shows stability and accuracy separately, but the overall reliability score uses the combined quality signal so stable wrongness is not rewarded. V3.1 also adds a `consistency_profile` label, such as `stable_and_correct`, `stable_but_inaccurate`, or `unstable_and_inaccurate`, so the same numeric quality score does not hide different failure modes.
+The profile label is important: two judges with identical `consistency_quality` scores can have very different failure modes.
+
+### For reference tests
+
+| Metric | What it measures |
+|---|---|
+| `reference_accuracy_with` | Accuracy when the judge is given a reference answer |
+| `reference_accuracy_without` | Accuracy without a reference answer |
+| `reference_delta` | The difference — positive means reference helps, negative means it hurts |
+
+### Overall
+
+| Metric | What it measures |
+|---|---|
+| `reliability_score` | Weighted composite of all quality scores, 0–100 |
+| `confidence_level` | `low` / `medium` / `high` based on audit mode and case count |
+| `grade` | Letter grade derived from reliability score |
 
 ---
 
 ## Audit modes
 
-### 1. Single-pair probe
+### Single-pair probe
 
-Use this mode when you want to debug one custom A/B evaluation example.
+**When to use:** You have a specific case you suspect a judge handles poorly.
 
-You provide:
+You supply:
+- A question or task
+- Answer A and Answer B
+- A rubric
+- Optionally: a reference answer and the expected winner
 
-- question or task
-- Answer A
-- Answer B
-- rubric
-- optional reference answer
-- optional expected winner
-- judge model
+The auditor mutates your pair across all selected test types and reports verdict stability and accuracy on that specific example.
 
-Interpretation: this is a **local perturbation probe**, not a global reliability certificate.
+**Confidence is always low** — one pair is one data point. Use this for spot-checking and debugging, not for general model comparison.
 
-### 2. Diagnostic suite
+### Diagnostic suite
 
-Use this mode when you want to compare judge models across controlled built-in cases.
+**When to use:** You want a generalizable bias profile across many models.
 
-The built-in suite lives at:
+No custom input needed. The auditor runs its built-in library of 18 close-call cases — pairs where the quality gap between answers is small enough that presentation bias can actually tip the verdict.
 
-```text
-diagnostics/builtin_cases.jsonl
-```
+Cases are tagged by:
+- **Target bias type:** position, verbosity, style, consistency, rubric, reference
+- **Difficulty:** easy / medium / hard
 
-Each diagnostic case contains:
-
-```json
-{
-  "id": "style_close_call_01",
-  "target_bias": "style",
-  "question": "...",
-  "answer_a": "...",
-  "answer_b": "...",
-  "expected_winner": "A",
-  "rubric": "...",
-  "reference_answer": "...",
-  "difficulty": "hard",
-  "rationale": "Why the expected winner is known"
-}
-```
-
-Interpretation: this gives a stronger empirical bias profile, but it is still limited by the size and design of the diagnostic case set.
+The auditor aggregates results across cases to produce a bias profile with `medium` or `high` confidence.
 
 ---
 
-## Bias dimensions tested
+## Six bias dimensions
 
-| Dimension | What it checks | Main V3 interpretation |
+| Dimension | What it tests | How |
 |---|---|---|
-| Position | Does answer order affect verdicts? | Invariance after swapping A/B |
-| Verbosity | Does length change the verdict? | Robustness to neutral expansion |
-| Style | Does polish/confidence affect verdicts? | Robustness to register changes, with length validation |
-| Consistency | Does the model repeat its verdict? | Stability, accuracy, `stability × accuracy`, and failure-mode profile |
-| Rubric | Does paraphrasing the rubric change the verdict? | Invariance under equivalent rubric wording |
-| Reference | Does a reference answer help or distort judging? | Accuracy with vs. without reference |
+| **Position** | Does answer order affect verdicts? | Swap A↔B and check if the verdict flips |
+| **Verbosity** | Does answer length affect verdicts? | Expand one answer with neutral filler content |
+| **Style** | Does presentation style affect verdicts? | Rewrite one answer in a different register (plain↔polished) |
+| **Consistency** | Does the judge repeat its verdict? | Ask the same question N times and measure agreement |
+| **Rubric** | Does rubric wording affect verdicts? | Paraphrase the rubric without changing its meaning |
+| **Reference** | Does a reference answer help or hurt? | Compare accuracy with vs. without a reference |
 
 ---
 
-## Architecture
+## Quickstart (local)
 
-```text
-User / Gradio UI / MCP client
-        ↓
-AuditInput
-        ↓
-Orchestrator
-        ↓
-Perturbation Generator
-        ↓
-Perturbation Validator
-        ↓
-Judge Runner
-        ↓
-Bias Analyzer
-        ↓
-Report Writer
-        ↓
-AuditReport
-```
-
-The direct Python pipeline is the main runtime path used by Gradio. The same stages are also exposed as Google ADK tools for agent-style orchestration and capstone compatibility.
-
----
-
-## Project structure
-
-```text
-llm_judge_auditor_v3/
-├── app.py                         # Gradio UI
-├── agents/
-│   ├── orchestrator.py            # Pipeline + ADK tool wrappers
-│   ├── diagnostic_suite.py        # Loads built-in JSONL cases
-│   ├── perturbation_generator.py  # Creates position/style/verbosity/rubric/reference variants
-│   ├── perturbation_validator.py  # Checks mutation quality and confounds
-│   ├── judge_runner.py            # Calls selected judge model
-│   ├── bias_analyzer.py           # Computes accuracy, invariance, stability, quality
-│   └── report_writer.py           # Builds final AuditReport
-├── diagnostics/
-│   └── builtin_cases.jsonl        # Built-in controlled diagnostic cases
-├── judges/
-│   └── openrouter.py              # OpenRouter judge adapter
-├── models/
-│   ├── input.py                   # AuditInput, AuditMode, TestType
-│   ├── diagnostics.py             # DiagnosticCase schema
-│   ├── test_case.py               # TestCase and JudgeDecision
-│   ├── validation.py              # MutationValidation
-│   └── report.py                  # TestResult, MetricSummary, AuditReport
-├── mcp/
-│   └── server.py                  # FastMCP tools
-├── utils/
-│   ├── prompts.py                 # Judge and perturbation prompts
-│   └── scoring.py                 # Reliability score, warnings, recommendations
-├── tests/                         # Unit tests
-├── requirements.txt
-├── .env.example
-├── V3_CHANGES.md
-└── REVIEW_AND_V2_CHANGES.md
-```
-
----
-
-## Quickstart
-
-### 1. Create environment
+### 1. Set up environment
 
 ```bash
 python -m venv .venv
@@ -206,44 +158,58 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Add API key
-
-Create a `.env` file:
+### 2. Add your API key
 
 ```bash
 cp .env.example .env
 ```
 
-Then add:
+Edit `.env`:
 
 ```env
 OPENROUTER_API_KEY=sk-or-...
-GENERATOR_MODEL=google/gemini-2.5-flash
+GENERATOR_MODEL=google/gemini-2.5-flash-lite
 ```
 
-`GENERATOR_MODEL` is optional. It controls the model used to generate perturbations, not the judge being audited.
+`OPENROUTER_API_KEY` is required. `GENERATOR_MODEL` controls which model generates perturbations (not the judge being audited) — defaults to `google/gemini-2.5-flash-lite` if omitted.
 
-### 3. Run the app
+Get a free OpenRouter key at [openrouter.ai](https://openrouter.ai). It provides unified access to all supported judge models.
+
+### 3. Run
 
 ```bash
 python app.py
 ```
 
-Open the local Gradio URL, choose one or more judge models, then select either:
-
-- **Single-pair probe**
-- **Diagnostic suite**
+Open the local Gradio URL in your browser.
 
 ---
 
-## Python usage
+## Using the UI
 
-### Diagnostic suite
+1. **Choose audit mode** — Single-pair probe or Diagnostic suite
+2. **Select judge model(s)** — run multiple models in parallel for comparison
+3. **Choose test types** — all six are selected by default
+4. **Run the audit**
+
+For single-pair: fill in the question/answer fields or choose a preset example.  
+For diagnostic suite: just click Run — the built-in cases load automatically.
+
+Results appear as:
+- A **comparison table** across all selected models
+- **Per-model breakdowns** with all submetrics and evidence
+- **Warnings** for specific failure modes detected
+- **Raw JSON** for programmatic use
+
+---
+
+## Python API
 
 ```python
 from agents.orchestrator import run_audit_pipeline
 from models.input import AuditInput, AuditMode
 
+# Diagnostic suite
 report = run_audit_pipeline(AuditInput(
     audit_mode=AuditMode.DIAGNOSTIC_SUITE,
     judge_model="google/gemini-2.5-flash",
@@ -251,154 +217,136 @@ report = run_audit_pipeline(AuditInput(
     diagnostic_difficulty="all",
 ))
 
-print(report.reliability_score)
-print(report.confidence_level)
-print(report.metric_summary)
+print(report.reliability_score)       # 0–100
+print(report.confidence_level)        # "low" / "medium" / "high"
+print(report.metric_summary)          # all submetrics
+print(report.warnings)                # plain-language red flags
 ```
 
-### Single-pair probe
-
 ```python
-from agents.orchestrator import run_audit_pipeline
-from models.input import AuditInput, AuditMode
-
+# Single-pair probe
 report = run_audit_pipeline(AuditInput(
     audit_mode=AuditMode.SINGLE_PAIR,
     judge_model="google/gemini-2.5-flash",
     question="Which answer better explains overfitting?",
-    answer_a="Overfitting happens when a model memorizes training data and performs poorly on new data.",
-    answer_b="Overfitting is when a model becomes more intelligent through repeated exposure to examples.",
+    answer_a="Overfitting happens when a model memorizes training data and generalizes poorly.",
+    answer_b="Overfitting is when a model becomes more intelligent through repeated exposure.",
     expected_winner="A",
     rubric="Choose the answer that is more accurate and useful.",
 ))
 
 print(report.metric_summary.baseline_accuracy)
 print(report.metric_summary.invariance)
+print(report.metric_summary.consistency_profile)
 ```
 
 ---
 
-## MCP usage
-
-Run:
+## MCP server
 
 ```bash
 python mcp/server.py
 ```
 
-Available MCP tools:
+Exposes three tools for agent-style orchestration:
 
-- `audit_judge_single_pair`
-- `audit_judge_diagnostic_suite`
-- `list_builtin_diagnostic_tests`
+| Tool | Description |
+|---|---|
+| `audit_judge_single_pair` | Run a single-pair probe via MCP |
+| `audit_judge_diagnostic_suite` | Run the diagnostic suite via MCP |
+| `list_builtin_diagnostic_tests` | List available built-in test cases |
 
-Example diagnostic-suite parameters:
+---
 
-```text
-judge_model = "google/gemini-2.5-flash"
-tests = "all"
-case_limit = 24
-difficulty = "all"
-consistency_runs = 5
+## Architecture
+
+```
+User / Gradio UI / MCP client
+        │
+        ▼
+   AuditInput (Pydantic)
+        │
+        ▼
+   Orchestrator  ──── Google ADK tools
+        │
+        ├─▶ Perturbation Generator  (creates position/style/verbosity/rubric/reference variants)
+        │
+        ├─▶ Perturbation Validator  (checks mutation quality; flags confounds)
+        │
+        ├─▶ Judge Runner  (calls judge model via OpenRouter)
+        │
+        ├─▶ Bias Analyzer  (computes accuracy, invariance, stability, quality scores)
+        │
+        └─▶ Report Writer  (builds AuditReport with warnings and recommendations)
+```
+
+The Gradio UI and the Python API both go through the same Orchestrator. The MCP server wraps the same pipeline for agent-style use.
+
+---
+
+## Project structure
+
+```
+├── app.py                          # Gradio UI
+├── agents/
+│   ├── orchestrator.py             # Pipeline + ADK tool wrappers
+│   ├── diagnostic_suite.py         # Loads built-in JSONL cases
+│   ├── perturbation_generator.py   # Generates test variants
+│   ├── perturbation_validator.py   # Validates mutation quality
+│   ├── judge_runner.py             # Calls judge model via OpenRouter
+│   ├── bias_analyzer.py            # Computes all metrics
+│   └── report_writer.py            # Builds AuditReport
+├── diagnostics/
+│   └── builtin_cases.jsonl         # 18 built-in close-call cases
+├── judges/
+│   └── openrouter.py               # OpenRouter adapter
+├── mcp/
+│   └── server.py                   # FastMCP tool definitions
+├── models/
+│   ├── input.py                    # AuditInput, AuditMode, TestType
+│   ├── diagnostics.py              # DiagnosticCase schema
+│   ├── test_case.py                # TestCase, JudgeDecision
+│   ├── validation.py               # MutationValidation
+│   └── report.py                   # TestResult, MetricSummary, AuditReport
+├── utils/
+│   ├── prompts.py                  # Judge and perturbation prompts
+│   └── scoring.py                  # Reliability score, warnings, recommendations
+├── tests/                          # Unit tests (pytest)
+├── requirements.txt
+└── .env.example
 ```
 
 ---
 
-## Report fields to look at first
-
-The most important fields in `AuditReport` are:
-
-| Field | Meaning |
-|---|---|
-| `reliability_score` | Composite quality score, 0–100 |
-| `confidence_level` | Low/medium/high based on audit mode and case coverage |
-| `score_interpretation` | Plain-language warning about how to interpret the score |
-| `metric_summary.baseline_accuracy` | Correctness before perturbation |
-| `metric_summary.robust_accuracy` | Correctness after perturbation |
-| `metric_summary.invariance` | Verdict stability under irrelevant transformations |
-| `metric_summary.stability` | Repeated-call agreement |
-| `metric_summary.consistency_accuracy` | Repeated-call correctness |
-| `metric_summary.consistency_quality` | `stability × consistency_accuracy` |
-| `metric_summary.consistency_profile` | Interpretable failure-mode label for consistency |
-| `metric_summary.reference_helpfulness` | Accuracy delta with vs. without reference |
-| `mutation_validations` | Warnings about confounded generated perturbations |
-| `generated_variants` | Inspectable generated prompts/variants |
-
----
-
-## Testing
-
-Run:
+## Running tests
 
 ```bash
-python -m compileall .
 pytest -q
 ```
 
-Expected result:
-
-```text
-14 passed
-```
-
-The tests cover:
-
-- diagnostic case loading
-- coverage across bias dimensions
-- separated accuracy and invariance scoring
-- stable-wrongness behavior
-- consistency stability, accuracy, quality, and profile labels
-- reference-guided accuracy
-- weighted reliability scoring with `0.60 × robust_accuracy + 0.40 × invariance` perturbation quality
-- metric summary calculation
-- style perturbation validation
+The test suite covers accuracy/invariance separation, stable-wrongness behavior, consistency profile labeling, reference accuracy, reliability score weighting, and role-based baseline routing.
 
 ---
 
-## Important limitations
+## Limitations
 
-This project is a diagnostic toolkit, not a final scientific benchmark.
+This is a diagnostic toolkit, not a scientific benchmark.
 
-Current limitations:
+- The built-in case library is intentionally small — 18 cases gives a signal, not a certificate
+- Generated perturbations are LLM-produced and can be imperfect; inspect `mutation_validations` for warnings
+- Strong claims require task-specific cases from your real evaluation distribution
+- Model behavior on OpenRouter can vary across provider updates and versions
+- Single-pair results describe fragility on the supplied example only
 
-- The built-in diagnostic suite is intentionally small.
-- Results depend on the quality and representativeness of diagnostic cases.
-- Generated perturbations can be imperfect and should be inspected.
-- Mutation validation is heuristic, not a formal semantic guarantee.
-- OpenRouter/provider model behavior can change over time.
-- Strong claims require task-specific cases from the user’s real evaluation distribution.
-- The current UI is optimized for clarity, not large-scale benchmarking.
+The safest interpretation:
 
-The safest interpretation is:
-
-```text
-This tool estimates how a judge behaves on the supplied examples and controlled probes.
-It should guide model selection and prompt debugging, not replace a full benchmark.
-```
+> This tool estimates how a judge behaves on controlled probes. Use it to guide model selection and prompt debugging — not to replace a full human-curated benchmark.
 
 ---
 
-## Suggested next improvements
+## Key design principle
 
-Good next steps for future versions:
-
-- Add larger diagnostic suites by task type: factual QA, summarization, code, RAG, safety, medical, legal, creative writing.
-- Add bootstrap confidence intervals over cases.
-- Add dynamic OpenRouter model discovery instead of a hardcoded model list.
-- Add HTML/PDF export for audit reports.
-- Save audit runs and build a model comparison leaderboard.
-- Add stronger semantic validation for generated perturbations.
-- Add support for user-uploaded diagnostic JSONL files.
-- Track judge settings explicitly: temperature, top-p, seed, provider, and model version.
-
----
-
-## Summary
-
-V3’s main methodological principle is simple:
-
-```text
-Reliability = correctness + robustness + stability.
-```
-
-A good judge should not only give the same answer repeatedly. It should give the right answer, remain stable under irrelevant transformations, and avoid being tipped by superficial presentation features.
+> **Reliability = correctness + robustness + stability.**
+>
+> A trustworthy judge picks the right answer, keeps picking it under irrelevant transformations, and gives the same answer when asked again.
+> Stability alone is not enough — a consistently wrong judge is not reliable.
