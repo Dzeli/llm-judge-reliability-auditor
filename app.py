@@ -55,7 +55,31 @@ CSS = """
 .hero {background: linear-gradient(135deg,#111827,#1d4ed8); color:white; padding:24px 28px; border-radius:14px; margin-bottom:14px;}
 .hero h1 {margin:0; font-size:28px;} .hero p {opacity:.85; margin:6px 0 0 0;}
 .small-note {font-size: 12px; color:#666;}
+.mode-info {background:#f0f4ff; border-left:4px solid #1d4ed8; padding:10px 14px; border-radius:6px; margin-bottom:4px;}
 """
+
+SINGLE_PAIR_INFO = (
+    "<div class='mode-info'>📌 <b>Single-pair probe</b> — You supply a question and two answers. "
+    "The auditor mutates your pair (swaps positions, rewrites style, etc.) and checks whether the judge changes its verdict. "
+    "Good for spot-checking a specific case. Confidence is always <b>low</b> — one pair is one data point.</div>"
+)
+
+DIAGNOSTIC_INFO = (
+    "<div class='mode-info'>🔬 <b>Diagnostic suite</b> — No custom input needed. "
+    "The auditor runs its built-in library of close-call cases designed to expose bias across all 6 test types. "
+    "Gives a generalizable bias profile with <b>medium</b> or <b>high</b> confidence. "
+    "The question/answer fields below are ignored.</div>"
+)
+
+
+def _on_mode_change(mode: str):
+    is_single = mode == "Single-pair probe"
+    return (
+        gr.update(value=SINGLE_PAIR_INFO if is_single else DIAGNOSTIC_INFO),
+        gr.update(visible=is_single),  # preset dropdown
+        gr.update(visible=is_single),  # left input column
+        gr.update(visible=not is_single),  # diagnostic-only controls
+    )
 
 
 def _load_preset(name: str):
@@ -221,10 +245,12 @@ with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
             value="Single-pair probe",
             label="Audit mode",
         )
-        preset = gr.Dropdown(list(PRESETS.keys()), label="Preset", value=None)
+
+    mode_info = gr.HTML(value=SINGLE_PAIR_INFO)
+    preset = gr.Dropdown(list(PRESETS.keys()), label="Preset (single-pair only)", value=None, visible=True)
 
     with gr.Row():
-        with gr.Column(scale=3):
+        with gr.Column(scale=3, visible=True) as input_col:
             question = gr.Textbox(label="Question", lines=2)
             with gr.Row():
                 answer_a = gr.Textbox(label="Answer A", lines=7)
@@ -237,14 +263,15 @@ with gr.Blocks(title="LLM Judge Reliability Auditor v3") as demo:
             models = gr.Dropdown(SUPPORTED_MODELS, value=["google/gemini-2.5-flash"], multiselect=True, label="Judge model(s)")
             tests = gr.CheckboxGroup([t.value for t in TestType], value=[t.value for t in TestType], label="Tests")
             consistency_runs = gr.Slider(2, 10, value=5, step=1, label="Consistency runs")
-            diagnostic_limit = gr.Slider(1, 30, value=24, step=1, label="Diagnostic case limit")
-            diagnostic_difficulty = gr.Dropdown(["all", "easy", "medium", "hard"], value="all", label="Diagnostic difficulty")
-            gr.Markdown("<span class='small-note'>Diagnostic suite ignores the custom A/B fields and uses built-in controlled cases.</span>")
+            with gr.Group(visible=False) as diagnostic_controls:
+                diagnostic_limit = gr.Slider(1, 30, value=24, step=1, label="Diagnostic case limit")
+                diagnostic_difficulty = gr.Dropdown(["all", "easy", "medium", "hard"], value="all", label="Diagnostic difficulty")
             run_btn = gr.Button("Run audit", variant="primary")
 
     summary = gr.Markdown(label="Summary")
     raw_json = gr.Code(label="Raw JSON report", language="json")
 
+    audit_mode.change(_on_mode_change, inputs=audit_mode, outputs=[mode_info, preset, input_col, diagnostic_controls])
     preset.change(_load_preset, inputs=preset, outputs=[question, answer_a, answer_b, reference, rubric, expected])
     run_btn.click(
         _run,
