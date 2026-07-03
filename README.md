@@ -9,7 +9,7 @@ python_version: '3.13'
 app_file: app.py
 pinned: false
 license: mit
-short_description: A multi-agent diagnostic toolkit for auditing LLM-as-judge reliability
+short_description: Multi-agent bias auditor for LLM-as-judge systems
 ---
 
 # 🔬 LLM Judge Reliability Auditor
