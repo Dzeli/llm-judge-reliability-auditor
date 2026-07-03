@@ -1,8 +1,14 @@
 import json
-try:
-    from fastmcp import FastMCP
-except Exception:
-    from mcp.server.fastmcp import FastMCP
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT))
+
+from dotenv import load_dotenv
+load_dotenv(ROOT / ".env")
+
+from fastmcp import FastMCP
 from agents.orchestrator import run_audit_pipeline
 from models.input import AuditInput, AuditMode, TestType
 
@@ -21,6 +27,18 @@ def audit_judge_single_pair(
     tests: str = "all",
     consistency_runs: int = 5,
 ) -> str:
+    """Probe a judge model for bias on a single custom question/answer pair.
+
+    Use this when you have a specific case you want to test — the auditor mutates
+    your pair (swaps positions, rewrites style, etc.) and checks if the judge changes
+    its verdict. Confidence is always low (one pair = one data point).
+
+    judge_model: OpenRouter model ID, e.g. 'google/gemini-2.5-flash'
+    expected_winner: 'A', 'B', 'tie', or 'unknown'
+    tests: comma-separated list of test types, or 'all'. Options: position, verbosity, style, consistency, rubric, reference
+    consistency_runs: how many times to repeat the same judgment for consistency testing
+    Returns: full AuditReport as JSON
+    """
     selected_tests = _parse_tests(tests)
     report = run_audit_pipeline(AuditInput(
         audit_mode=AuditMode.SINGLE_PAIR,
@@ -45,6 +63,19 @@ def audit_judge_diagnostic_suite(
     difficulty: str = "all",
     consistency_runs: int = 5,
 ) -> str:
+    """Run a full bias audit on a judge model using built-in controlled cases.
+
+    Use this to get a generalizable bias profile across all 6 bias dimensions.
+    No custom input needed — the built-in case library handles everything.
+    Confidence reaches medium or high depending on case count.
+
+    judge_model: OpenRouter model ID, e.g. 'google/gemini-2.5-flash'
+    tests: comma-separated list of test types, or 'all'. Options: position, verbosity, style, consistency, rubric, reference
+    case_limit: maximum number of diagnostic cases to run (max 24)
+    difficulty: filter cases by difficulty — 'all', 'easy', 'medium', or 'hard'
+    consistency_runs: how many times to repeat the same judgment for consistency testing
+    Returns: full AuditReport as JSON including reliability score, grade, and per-test breakdowns
+    """
     report = run_audit_pipeline(AuditInput(
         audit_mode=AuditMode.DIAGNOSTIC_SUITE,
         judge_model=judge_model,
@@ -58,6 +89,11 @@ def audit_judge_diagnostic_suite(
 
 @mcp.tool()
 def list_builtin_diagnostic_tests() -> str:
+    """List all available bias test types supported by the diagnostic suite.
+
+    Returns: JSON object with a 'tests' array of valid test type names.
+    Use the returned names as values for the 'tests' parameter in other tools.
+    """
     return json.dumps({"tests": [t.value for t in TestType]}, indent=2)
 
 
