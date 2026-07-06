@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "llm-judge-auditor": {
+      "command": "python",
+      "args": ["mcp/server.py"]
+    }
+  }
+}
