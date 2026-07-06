@@ -16,7 +16,9 @@ short_description: Multi-agent bias auditor for LLM-as-judge systems
 
 A multi-agent diagnostic toolkit that tests whether an **LLM-as-a-judge is trustworthy** — before you use it in an evaluation pipeline.
 
-Built for the [Kaggle AI Agents Intensive Capstone](https://www.kaggle.com/competitions/google-ai-intensive-capstone) using **Google ADK**, **Gradio**, **OpenRouter**, **Pydantic v2**, and **FastMCP**.
+Built for the [Kaggle AI Agents Intensive Capstone](https://www.kaggle.com/competitions/vibecoding-agents-capstone-project) using **Google ADK**, **Gradio**, **OpenRouter**, **Pydantic v2**, and **FastMCP**.
+
+![LLM Judge Reliability Auditor UI](docs/screenshot.png)
 
 ---
 
@@ -182,6 +184,21 @@ python app.py
 ```
 
 Open the local Gradio URL in your browser.
+
+---
+
+## Deploying to Hugging Face Spaces
+
+The live demo runs on HF Spaces. To reproduce the deployment:
+
+1. Create a new Space at [huggingface.co/new-space](https://huggingface.co/new-space) — SDK: **Gradio**, hardware: free CPU tier is sufficient
+2. Add the Space as a git remote and push:
+   ```bash
+   git remote add space https://huggingface.co/spaces/<your-user>/<your-space-name>
+   git push space main
+   ```
+3. Set the API key as a **secret** (never in code): Space **Settings → Variables and secrets** → add `OPENROUTER_API_KEY`. Optionally add `GENERATOR_MODEL` as a variable.
+4. Done — the Space installs `requirements.txt` and launches `app.py` automatically. The YAML frontmatter at the top of this README configures the Space (SDK version, Python version, entry file).
 
 ---
 
