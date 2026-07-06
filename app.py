@@ -118,7 +118,7 @@ def run_audit_pipeline(
     consistency_runs: int,
     diagnostic_case_limit: int,
     diagnostic_difficulty: str,
-    active_mode: str,
+    active_tab_index: int,
     progress=gr.Progress(),
 ):
     """Executes the reliability auditing pipeline for selected judge models.
@@ -129,8 +129,8 @@ def run_audit_pipeline(
         yield build_status_bar(""), error_msg, ""
         return
 
-    # Determine execution mode and active configurations
-    audit_mode = AuditMode.DIAGNOSTIC_SUITE if active_mode == "diagnostic" else AuditMode.SINGLE_PAIR
+    # Determine execution mode from the active tab index (0 = Single-pair, 1 = Diagnostic)
+    audit_mode = AuditMode.DIAGNOSTIC_SUITE if active_tab_index == 1 else AuditMode.SINGLE_PAIR
 
     if audit_mode == AuditMode.SINGLE_PAIR:
         missing = [label for label, val in [("Question", question), ("Answer A", answer_a), ("Answer B", answer_b)] if not val or not str(val).strip()]
@@ -237,8 +237,6 @@ with gr.Blocks(js=JS_CONTENT) as demo:
       </h1>
     </div>
     """)
-
-    active_mode_state = gr.State(value="single")
 
     # ── Columns Layout ──
     with gr.Row(equal_height=False):
@@ -386,15 +384,6 @@ with gr.Blocks(js=JS_CONTENT) as demo:
 
     # ── Event Wiring ──
 
-    # Tab select updates state mode
-    def on_tab_select(evt: gr.SelectData):
-        return "diagnostic" if evt.index == 1 else "single"
-
-    mode_tabs.select(
-        fn=on_tab_select,
-        outputs=[active_mode_state],
-    )
-
     # Preset selection populates prompt and answer values
     preset_select.change(
         fn=load_preset,
@@ -402,7 +391,7 @@ with gr.Blocks(js=JS_CONTENT) as demo:
         outputs=[prompt_input, answer_a_input, answer_b_input, reference_input, rubric_input, expected_select],
     )
 
-    # Trigger audit execution pipeline
+    # Trigger audit execution pipeline — mode_tabs passes its selected index directly
     execution_event = submit_button.click(
         fn=run_audit_pipeline,
         inputs=[
@@ -417,7 +406,7 @@ with gr.Blocks(js=JS_CONTENT) as demo:
             runs_slider,
             limit_slider,
             difficulty_select,
-            active_mode_state,
+            mode_tabs,
         ],
         outputs=[pipeline_status, pipeline_results, raw_report_json],
     )
