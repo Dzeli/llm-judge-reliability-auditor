@@ -387,8 +387,11 @@ with gr.Blocks(js=JS_CONTENT) as demo:
     # ── Event Wiring ──
 
     # Tab select updates state mode
+    def on_tab_select(evt: gr.SelectData):
+        return "diagnostic" if evt.index == 1 else "single"
+
     mode_tabs.select(
-        fn=lambda evt: "diagnostic" if getattr(evt, "index", 0) == 1 else "single",
+        fn=on_tab_select,
         outputs=[active_mode_state],
     )
 
