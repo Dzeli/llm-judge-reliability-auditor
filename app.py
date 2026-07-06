@@ -130,7 +130,7 @@ def run_audit_pipeline(
         return
 
     # Determine execution mode from the active tab index (0 = Single-pair, 1 = Diagnostic)
-    audit_mode = AuditMode.DIAGNOSTIC_SUITE if active_tab_index == 1 else AuditMode.SINGLE_PAIR
+    audit_mode = AuditMode.DIAGNOSTIC_SUITE if int(active_tab_index) == 1 else AuditMode.SINGLE_PAIR
 
     if audit_mode == AuditMode.SINGLE_PAIR:
         missing = [label for label, val in [("Question", question), ("Answer A", answer_a), ("Answer B", answer_b)] if not val or not str(val).strip()]
@@ -225,7 +225,7 @@ def run_audit_pipeline(
     yield "", build_results_html(reports, errors), serialized_reports
 
 # ── Gradio Blocks Layout ───────────────────────────────────────────────────────
-with gr.Blocks(js=JS_CONTENT) as demo:
+with gr.Blocks() as demo:
 
     # ── Header Banner ──
     gr.HTML("""
@@ -238,15 +238,18 @@ with gr.Blocks(js=JS_CONTENT) as demo:
     </div>
     """)
 
+    # Hidden component to track which tab is active (0 = Single-pair, 1 = Diagnostic)
+    active_tab_idx = gr.Number(value=0, visible=False)
+
     # ── Columns Layout ──
     with gr.Row(equal_height=False):
 
         # Left side: Input Forms
         with gr.Column(scale=7):
-            with gr.Tabs() as mode_tabs:
+            with gr.Tabs():
 
                 # Single-pair test case generator tab
-                with gr.TabItem("🎯  Single-pair Probe"):
+                with gr.TabItem("🎯  Single-pair Probe") as single_pair_tab:
                     gr.HTML(
                         '<div class="mode-callout">Provide a reference prompt and two potential answers. '
                         'The auditor mutates the pair (order swap, verbosity padding, style adjustments) '
@@ -299,7 +302,7 @@ with gr.Blocks(js=JS_CONTENT) as demo:
                     )
 
                 # Diagnostic Suite Tab
-                with gr.TabItem("🔬  Diagnostic Suite"):
+                with gr.TabItem("🔬  Diagnostic Suite") as diagnostic_tab:
                     gr.HTML(
                         '<div class="mode-callout">Run the built-in library of <strong>close-call scenarios</strong> '
                         'specifically structured to isolate and trigger position, verbosity, and style biases. '
@@ -384,6 +387,12 @@ with gr.Blocks(js=JS_CONTENT) as demo:
 
     # ── Event Wiring ──
 
+    # Track which tab is selected via a hidden Number component.
+    # Each TabItem's own select event fires when that tab becomes active — this
+    # avoids relying on SelectData injection, which is fragile across Gradio versions.
+    single_pair_tab.select(fn=lambda: 0, outputs=[active_tab_idx])
+    diagnostic_tab.select(fn=lambda: 1, outputs=[active_tab_idx])
+
     # Preset selection populates prompt and answer values
     preset_select.change(
         fn=load_preset,
@@ -391,7 +400,7 @@ with gr.Blocks(js=JS_CONTENT) as demo:
         outputs=[prompt_input, answer_a_input, answer_b_input, reference_input, rubric_input, expected_select],
     )
 
-    # Trigger audit execution pipeline — mode_tabs passes its selected index directly
+    # Trigger audit execution pipeline
     execution_event = submit_button.click(
         fn=run_audit_pipeline,
         inputs=[
@@ -406,7 +415,7 @@ with gr.Blocks(js=JS_CONTENT) as demo:
             runs_slider,
             limit_slider,
             difficulty_select,
-            mode_tabs,
+            active_tab_idx,
         ],
         outputs=[pipeline_status, pipeline_results, raw_report_json],
     )
@@ -421,4 +430,4 @@ with gr.Blocks(js=JS_CONTENT) as demo:
 
 # ── Application Launch ──
 if __name__ == "__main__":
-    demo.launch(css=CSS_CONTENT, theme=gr.themes.Base())
+    demo.launch(css=CSS_CONTENT, theme=gr.themes.Base(), js=JS_CONTENT)
